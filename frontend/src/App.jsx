@@ -29,17 +29,24 @@ export default function App() {
       body: formData
     });
 
-    setResult(await res.json());
+    const data = await res.json();
+
+    setResult({
+      match_score: data.match_score ?? 0,
+      score_message: data.score_message ?? "Analysis completed.",
+      matched_skills: Array.isArray(data.matched_skills) ? data.matched_skills : [],
+      missing_skills: Array.isArray(data.missing_skills) ? data.missing_skills : [],
+      derived_skills: Array.isArray(data.derived_skills) ? data.derived_skills : [],
+      suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
+    });
+
     setLoading(false);
   };
 
   return (
     <div style={pageStyle}>
-      {/* HERO */}
       <section style={sectionStyle}>
-        <h1 style={heroTitle}>
-          Candidate & Position Alignment
-        </h1>
+        <h1 style={heroTitle}>Candidate & Position Alignment</h1>
         <p style={heroSubtitle}>
           Upload profile and define requirements for strategic analysis.
         </p>
@@ -85,6 +92,17 @@ export default function App() {
             <p style={scoreMessage}>{result.score_message}</p>
           </section>
 
+          {/* DERIVED SKILLS (SAFE INSERT) */}
+          <section style={{ ...sectionStyle, marginTop: 72 }}>
+            <h3 style={sectionTitle}>Derived Skills</h3>
+
+            <SkillBlock
+              title="Extracted From Resume"
+              items={result.derived_skills}
+              color={palette.topaz}
+            />
+          </section>
+
           {/* COMPETENCY */}
           <section style={{ ...sectionStyle, marginTop: 72 }}>
             <h3 style={sectionTitle}>Competency Breakdown</h3>
@@ -105,9 +123,14 @@ export default function App() {
           {/* STRATEGY */}
           <section style={{ ...sectionStyle, marginTop: 72 }}>
             <h3 style={sectionTitle}>Strategic Recommendations</h3>
-            {result.suggestions.map((s, i) => (
-              <div key={i} style={strategyItem}>{s}</div>
-            ))}
+
+            {result.suggestions.length === 0 ? (
+              <p style={{ opacity: 0.5 }}>No recommendations generated.</p>
+            ) : (
+              result.suggestions.map((s, i) => (
+                <div key={i} style={strategyItem}>{s}</div>
+              ))
+            )}
           </section>
         </>
       )}
@@ -122,7 +145,7 @@ function ScoreRing({ value }) {
 
   useEffect(() => {
     let start = 0;
-    const end = value;
+    const end = value || 0;
     const duration = 1200;
     const stepTime = 15;
     const increment = (end / duration) * stepTime;
@@ -143,18 +166,19 @@ function ScoreRing({ value }) {
   const stroke = 10;
   const normalizedRadius = radius - stroke / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
+  const strokeDashoffset =
+    circumference - (progress / 100) * circumference;
 
   return (
-    <div style={{ position: "relative", width: radius * 2, height: radius * 2, margin: "0 auto" }}>
-      <svg height={radius * 2} width={radius * 2} style={{ transform: "rotate(-90deg)" }}>
+    <div style={{ position: "relative", width: 200, height: 200, margin: "0 auto" }}>
+      <svg height={200} width={200} style={{ transform: "rotate(-90deg)" }}>
         <circle
           stroke="#3B224A"
           fill="transparent"
           strokeWidth={stroke}
           r={normalizedRadius}
-          cx={radius}
-          cy={radius}
+          cx={100}
+          cy={100}
         />
         <circle
           stroke={palette.topaz}
@@ -164,8 +188,8 @@ function ScoreRing({ value }) {
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={strokeDashoffset}
           r={normalizedRadius}
-          cx={radius}
-          cy={radius}
+          cx={100}
+          cy={100}
         />
       </svg>
       <span style={{
@@ -175,32 +199,24 @@ function ScoreRing({ value }) {
         transform: "translate(-50%, -50%)",
         fontSize: 56,
         fontWeight: 800,
-        color: palette.topaz,
-        animation: "pulse 1.2s ease-out"
+        color: palette.topaz
       }}>
         {progress}%
       </span>
-
-      {/* Pulse keyframes */}
-      <style>{`
-        @keyframes pulse {
-          0% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.7; }
-          50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
-          100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }
 
-function SkillBlock({ title, items, color }) {
+function SkillBlock({ title, items = [], color }) {
   return (
     <div style={{ marginBottom: 28 }}>
       <h4 style={{ color, marginBottom: 10 }}>{title}</h4>
       <div style={pillWrap}>
         {items.length === 0
           ? <span style={{ opacity: 0.5 }}>None identified</span>
-          : items.map((i, idx) => <span key={idx} style={pill}>{i}</span>)}
+          : items.map((i, idx) => (
+              <span key={idx} style={pill}>{i}</span>
+            ))}
       </div>
     </div>
   );
@@ -224,57 +240,13 @@ const sectionStyle = {
   margin: "0 auto"
 };
 
-const heroTitle = {
-  textAlign: "center",
-  fontSize: 34,
-  fontWeight: 700
-};
-
-const heroSubtitle = {
-  textAlign: "center",
-  color: palette.muted,
-  marginTop: 6
-};
-
-const inputGrid = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1.4fr",
-  gap: 28,
-  marginTop: 28
-};
-
-const uploadBox = {
-  background: "#3B224A",
-  borderRadius: 16,
-  padding: 20,
-  textAlign: "center",
-  border: `1px solid ${palette.plum}`
-};
-
-const pdfIconPremium = {
-  width: 50,
-  height: 50,
-  borderRadius: 12,
-  background: `linear-gradient(145deg, #FFD966, #F9CE75)`,
-  color: palette.bg,
-  fontWeight: 800,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  margin: "0 auto 10px",
-  boxShadow: "0 4px 15px rgba(255, 206, 117, 0.4)"
-};
-
+const heroTitle = { textAlign: "center", fontSize: 34, fontWeight: 700 };
+const heroSubtitle = { textAlign: "center", color: palette.muted, marginTop: 6 };
+const inputGrid = { display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 28, marginTop: 28 };
+const uploadBox = { background: "#3B224A", borderRadius: 16, padding: 20, textAlign: "center", border: `1px solid ${palette.plum}` };
+const pdfIconPremium = { width: 50, height: 50, borderRadius: 12, background: "linear-gradient(145deg, #FFD966, #F9CE75)", color: palette.bg, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" };
 const fileInput = { width: "100%", color: palette.topaz };
-
-const textArea = {
-  padding: 14,
-  borderRadius: 16,
-  background: "#3B224A",
-  border: `1px solid ${palette.plum}`,
-  color: palette.topaz,
-  resize: "none"
-};
+const textArea = { padding: 14, borderRadius: 16, background: "#3B224A", border: `1px solid ${palette.plum}`, color: palette.topaz, resize: "none" };
 
 const cta = {
   marginTop: 28,
@@ -286,8 +258,8 @@ const cta = {
   border: "none",
   fontWeight: 700,
   cursor: "pointer",
-  boxShadow: "0 0 0px transparent",
-  transition: "all 0.2s ease"
+  outline: "none",
+  boxShadow: "none"
 };
 
 const scoreLabel = { marginTop: 14, color: palette.muted };
