@@ -126,8 +126,7 @@ def serve(path):
         return send_from_directory(app.static_folder, "index.html")
 
 # -----------------------------
-# Run (Heroku PORT)
+# Run locally
 # -----------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
