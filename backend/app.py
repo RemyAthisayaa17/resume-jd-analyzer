@@ -1,20 +1,23 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pdfplumber
 import re
+import os
 
 from ai_engine.embedder import embed_texts
 from ai_engine.retriever import semantic_match
 from ai_engine.reasoner import generate_recommendations
-from utils.skill_extractor import extract_skills_from_text  # NEW: skill extraction
+from utils.skill_extractor import extract_skills_from_text  # skill extraction
 
-app = Flask(__name__)
+# -----------------------------
+# App Setup
+# -----------------------------
+app = Flask(__name__, static_folder="../frontend/build")  # for serving React build
 CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
 # -----------------------------
 # Helpers
 # -----------------------------
-
 def extract_text_from_pdf(file):
     text = ""
     with pdfplumber.open(file) as pdf:
@@ -25,19 +28,12 @@ def extract_text_from_pdf(file):
     return text.lower()
 
 def normalize_text(text: str) -> str:
-    """
-    Normalize text WITHOUT destroying newlines.
-    """
     text = text.lower()
     text = re.sub(r"[^a-z0-9+.#\n ]", " ", text)
-    text = re.sub(r"[ \t]+", " ", text)  # preserve \n
+    text = re.sub(r"[ \t]+", " ", text)
     return text.strip()
 
 def split_into_sentences(text: str) -> list[str]:
-    """
-    Split text into meaningful JD / resume chunks.
-    Handles periods and newlines correctly.
-    """
     raw_chunks = re.split(r"[.\n]", text)
     cleaned = []
     for chunk in raw_chunks:
@@ -49,7 +45,6 @@ def split_into_sentences(text: str) -> list[str]:
 # -----------------------------
 # API Endpoint
 # -----------------------------
-
 @app.route("/analyze", methods=["POST"])
 def analyze():
     if "resume" not in request.files or "jd" not in request.form:
@@ -81,9 +76,7 @@ def analyze():
 
     similarity_scores = semantic_match(jd_embeddings, resume_embeddings)
 
-    # ---- CALIBRATED THRESHOLD ----
     THRESHOLD = 0.45
-
     matched_idx = [i for i, s in enumerate(similarity_scores) if s >= THRESHOLD]
     missing_idx = [i for i, s in enumerate(similarity_scores) if s < THRESHOLD]
 
@@ -93,7 +86,7 @@ def analyze():
     match_score = round((len(matched_requirements) / len(jd_chunks)) * 100, 1)
 
     # -----------------------------
-    # Derived Skills Extraction
+    # Derived Skills
     # -----------------------------
     derived_skills = extract_skills_from_text(resume_text)
 
@@ -122,7 +115,19 @@ def analyze():
     })
 
 # -----------------------------
-# Run
+# Serve React frontend
+# -----------------------------
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve(path):
+    if path != "" and os.path.exists(app.static_folder + "/" + path):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, "index.html")
+
+# -----------------------------
+# Run (Heroku PORT)
 # -----------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
